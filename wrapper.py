@@ -22,7 +22,10 @@ def _lzpad32(x):
 def _encode_sig(v, r, s):
     assert isinstance(v, (int, long))
     assert v in (27, 28)
-    # assert len(_int_to_big_endian(r)) == 32
+    # This fixes the one failing block test, but introduces four new
+    # failing tests in transaction tests.
+    # if not len(_int_to_big_endian(r)) == 32:
+        # raise InvalidTransaction("Invalid signature values!")
     vb, rb, sb = v - 27, _int_to_big_endian(r), _int_to_big_endian(s)
     return _lzpad32(rb) + _lzpad32(sb), vb
 
@@ -47,7 +50,6 @@ class Secp256k1_compact(object):
         if not len(sign) == 2:
             sign = (sign[:64], ord(sign[64]))
         assert len(sign) == 2
-        assert len(sign[0]) == 64
         deserialized_sig = self.pub_key.ecdsa_recoverable_deserialize(sign[0], sign[1])
         self.pub_key.public_key = self.pub_key.ecdsa_recover(msg32, deserialized_sig, raw=True)
         return self.pub_key.serialize(compressed=False)
@@ -72,7 +74,7 @@ class Secp256k1_raw(object):
         return _decode_sig(self.ecdsa.ecdsa_compact_sign(msg32, privkey))
 
     def ecdsa_raw_recover(self, msg32, sign):
-        assert len(_int_to_big_endian(sign[1])) == 32
+        v, r, s = sign
         return self.ecdsa.ecdsa_compact_recover(msg32, _encode_sig(*sign))
 
     def ecdsa_raw_verify(self, msg32, sign, pub):

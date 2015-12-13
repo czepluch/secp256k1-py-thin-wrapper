@@ -38,12 +38,12 @@ def test_raw():
     p3 = c_ecdsa_recover_raw(msg32, vrs1)
     p4 = c_ecdsa_recover_raw(msg32, vrs3)
     p5 = b_ecdsa_raw_recover(msg32, vrs3)
-    vrs2 = lr.ecdsa_raw_sign(msg32, priv)
+    vrs2 = lr.ecdsa_sign_raw(msg32, priv)
     p9 = b_ecdsa_raw_recover(msg32, vrs2)
     p10 = c_ecdsa_recover_raw(msg32, vrs2)
-    p7 = lr.ecdsa_raw_recover(msg32, vrs2)
-    vrs4 = lc.ecdsa_compact_sign(msg32, priv)
-    p8 = lr.ecdsa_raw_recover(msg32, vrs1)
+    p7 = lr.ecdsa_recover_raw(msg32, vrs2)
+    vrs4 = lc.ecdsa_sign_compact(msg32, priv)
+    p8 = lr.ecdsa_recover_raw(msg32, vrs1)
 
     # Ensure that recovered pub key is the same
     assert encode_pubkey(p1, 'bin') == pub
@@ -56,15 +56,15 @@ def test_raw():
 
     # check wrong pub
     wrong_vrs = c_ecdsa_sign_raw(msg32, 'x' * 32)
-    wrong_vrs2 = lr.ecdsa_raw_sign(msg32, 'x' * 32)
+    wrong_vrs2 = lr.ecdsa_sign_raw(msg32, 'x' * 32)
     p2 = c_ecdsa_recover_raw(msg32, wrong_vrs)
-    p3 = lr.ecdsa_raw_recover(msg32, wrong_vrs2)
+    p3 = lr.ecdsa_recover_raw(msg32, wrong_vrs2)
     assert encode_pubkey(p2, 'bin') != pub
     assert encode_pubkey(p3, 'bin') != pub
 
     # verify
-    assert lr.ecdsa_raw_verify(msg32, vrs2, p7)
-    assert lc.ecdsa_compact_verify(msg32, vrs4, p7)
+    assert lr.ecdsa_verify_raw(msg32, vrs2, p7)
+    assert lc.ecdsa_verify_compact(msg32, vrs4, p7)
 
     # check wrong pub
     sig_vrs2 = c_ecdsa_sign_raw(msg32, 'x' * 32)
@@ -74,7 +74,7 @@ def test_raw():
     # check wrong sig
     false_sig_vrs = sig_vrs2
     assert not c_ecdsa_verify_raw(msg32, false_sig_vrs, pub)
-    assert not lr.ecdsa_raw_verify(msg32, false_sig_vrs, pub)
+    assert not lr.ecdsa_verify_raw(msg32, false_sig_vrs, pub)
 
 
 def _tampered_65b(b):
@@ -91,7 +91,7 @@ def _tampered_64b(b):
 
 def test_compact():
     sig_compact = c_ecdsa_sign_compact(msg32, priv)
-    sig2_compact = lc.ecdsa_compact_sign(msg32, priv)
+    sig2_compact = lc.ecdsa_sign_compact(msg32, priv)
     assert isinstance(sig_compact, bytes)
     assert len(sig_compact) == 65
     assert isinstance(sig2_compact[0], bytes)
@@ -99,8 +99,8 @@ def test_compact():
 
     # recover
     p3 = c_ecdsa_recover_compact(msg32, sig_compact)
-    p4 = lc.ecdsa_compact_recover(msg32, sig2_compact)
-    p5 = lc.ecdsa_compact_recover(msg32, sig_compact)
+    p4 = lc.ecdsa_recover_compact(msg32, sig2_compact)
+    p5 = lc.ecdsa_recover_compact(msg32, sig_compact)
 
     # verify
     assert p3 == pub
@@ -120,11 +120,11 @@ def test_compact():
 
 def test_robustness():
     sig_compact = c_ecdsa_sign_compact(msg32, priv)
-    sig_compact2 = lc.ecdsa_compact_sign(msg32, priv)
+    sig_compact2 = lc.ecdsa_sign_compact(msg32, priv)
     sc = (_tampered_64b(sig_compact2[0]), sig_compact2[1])
     # must not segfault
     # c_ecdsa_recover_compact(msg32, _tampered_65b(sig_compact))
-    lc.ecdsa_compact_recover(msg32, sc)
+    lc.ecdsa_recover_compact(msg32, sc)
     with pytest.raises(InvalidSignatureError):
         c_ecdsa_recover_compact(msg32, sig_compact[:-1] + 'x')
 
@@ -169,10 +169,10 @@ def test_cecrecover(rounds=100):
 
 # Recovery with same random private key using cffi
 def test_lecrecover(rounds=100):
-    vrs_compact = lc.ecdsa_compact_sign(msg32, priv)
+    vrs_compact = lc.ecdsa_sign_compact(msg32, priv)
     st = time.time()
     for i in range(rounds):
-        p = lc.ecdsa_compact_recover(msg32, vrs_compact)
+        p = lc.ecdsa_recover_compact(msg32, vrs_compact)
     elapsed = time.time() - st
     print 'py secp256k1 took: %.2fsecs / %dμs per op  / %d recoveries per sec' % \
         (elapsed, elapsed / rounds * 10**6, rounds / elapsed)
@@ -189,7 +189,7 @@ def perf(rounds=1000):
     signatures = []
     st = time.time()
     for priv, msg in zip(privkeys, messages):
-        s = lc.ecdsa_compact_sign(msg32, priv)
+        s = lc.ecdsa_sign_compact(msg32, priv)
         signatures.append(s)
     elapsed = time.time() - st
     print 'cffi took: %.2fsecs / %dμs per op  / %d signs per sec' % \
@@ -199,7 +199,7 @@ def perf(rounds=1000):
     pubs = []
     st = time.time()
     for sig, msg in zip(signatures, messages):
-        p = lc.ecdsa_compact_recover(msg32, sig)
+        p = lc.ecdsa_recover_compact(msg32, sig)
         pubs.append(p)
     elapsed = time.time() - st
     print 'cffi took: %.2fsecs / %dμs per op  / %d recovers per sec' % \
